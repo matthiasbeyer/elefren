@@ -125,6 +125,9 @@ pub mod prelude {
 mod mastodon;
 pub use mastodon::*;
 
+mod routes;
+pub use routes::*;
+
 mod mastodon_unauth;
 pub use mastodon_unauth::*;
 

@@ -113,6 +113,46 @@ impl Mastodon {
         (get (q: &'a str, resolve: bool,)) search_v2: "search" => SearchResultV2,
     }
 
+    /// Generic function for making a GET request to "{self.base}/api/v1/{Route::ROUTE}/{id}"
+    ///
+    /// # Returns
+    ///
+    /// Result of Route::OUTPUT
+    ///
+    #[inline]
+    async fn route_get_id<Route: crate::routes::IdGetRoute>(&self, id: &str) -> Result<Route::Output> {
+        let route = format!("{}/api/v1/{}/{}", self.base, Route::ROUTE, id);
+        self.get(route).await
+    }
+
+    /// Replacement for Mastodon::get_account()
+    ///
+    /// Equivalent to `get(format!("/api/v1/accounts/{}", id))`
+    ///
+    /// # Errors
+    ///
+    /// If `access_token` is not set.
+    ///
+    /// ```no_run
+    /// # extern crate elefren;
+    /// # use elefren::prelude::*;
+    /// # fn main() -> Result<(), Box<::std::error::Error>> {
+    /// # let data = Data {
+    /// #     base: \"https://example.com\".into(),
+    /// #     client_id: \"taosuah\".into(),
+    /// #     client_secret: \"htnjdiuae\".into(),
+    /// #     redirect: \"https://example.com\".into(),
+    /// #     token: \"tsaohueaheis\".into(),
+    /// # };
+    /// let client = Mastodon::from(data);
+    /// let accoutn = client.get_account_new("42")?;
+    /// #   Ok(())
+    /// # }
+    /// ```"
+    pub async fn get_account_new(&self, id: &str) -> Result<Account> {
+        self.route_get_id::<crate::routes::GetAccount>(id).await
+    }
+
     route_id! {
         (get) get_account: "accounts/{}" => Account,
         (post) follow: "accounts/{}/follow" => Relationship,
