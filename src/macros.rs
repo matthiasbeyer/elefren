@@ -112,9 +112,8 @@ macro_rules! route_v2 {
 
                 let qs = serde_urlencoded::to_string(&qs_data)?;
 
-                let url = format!(concat!("/api/v2/", $url, "?{}"), &qs);
-
-                self.get(self.route(&url)).await
+                let url = format!(concat!("{}/api/v2/", $url, "?{}"), self.base, &qs);
+                self.get(url).await
             }
         }
 
@@ -155,9 +154,8 @@ macro_rules! route {
 
                 let qs = serde_urlencoded::to_string(&qs_data)?;
 
-                let url = format!(concat!("/api/v1/", $url, "?{}"), &qs);
-
-                self.get(self.route(&url)).await
+                let url = format!(concat!("{}/api/v1/", $url, "?{}"), self.base, &qs);
+                self.get(url).await
             }
         }
 
@@ -263,7 +261,8 @@ macro_rules! route_id {
                     "```"
                 ),
                 pub async fn $name(&self, id: &str) -> Result<$ret> {
-                    self.$method(self.route(&format!(concat!("/api/v1/", $url), id))).await
+                    let route = format!("{}{}{}", self.base, concat!("/api/v1/", $url), id);
+                    self.$method(route).await
                 }
             }
          )*
@@ -297,8 +296,8 @@ macro_rules! paged_routes_with_id {
                 "```"
             ),
             pub async fn $name<'a>(&'a self, id: &str) -> Result<Page<'a, $ret>> {
-                let url = self.route(&format!(concat!("/api/v1/", $url), id));
-                let res = self.client.$method(&url);
+                let url = format!(concat!("{}/api/v1/", $url), self.base, id);
+                let res = self.client.$method(url);
                 let response = self.send(res).await?;
 
                 Page::new(self, response).await
