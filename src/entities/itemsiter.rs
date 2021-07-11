@@ -46,7 +46,11 @@ impl<'a, T: Clone + for<'de> Deserialize<'de>> ItemsIter<'a, T> {
     }
 
     fn fill_next_page(&mut self) -> Option<()> {
-        let items = if let Ok(items) = self.page.next_page() {
+        let handle = tokio::runtime::Handle::current();
+        let next_page = handle // TODO: Make me go away
+            .block_on(self.page.next_page());
+
+        let items = if let Ok(items) = next_page {
             items
         } else {
             return None;

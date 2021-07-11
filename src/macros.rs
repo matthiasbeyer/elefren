@@ -24,13 +24,11 @@ macro_rules! paged_routes {
             "# }\n",
             "```"
             ),
-            pub fn $name(&self) -> Result<Page<$ret>> {
+            pub async fn $name<'a>(&'a self) -> Result<Page<'a, $ret>> {
                 let url = self.route(concat!("/api/v1/", $url));
-                let response = self.send_blocking(
-                        self.client.$method(&url)
-                )?;
+                let response = self.send(self.client.$method(&url)).await?;
 
-                Page::new(self, response)
+                Page::new(self, response).await
             }
 
         }
@@ -45,7 +43,7 @@ macro_rules! paged_routes {
                 $url,
                 "`\n# Errors\nIf `access_token` is not set."
             ),
-            pub fn $name<'a>(&self, $($param: $typ,)*) -> Result<Page<$ret>> {
+            pub async fn $name<'a>(&'a self, $($param: $typ,)*) -> Result<Page<'a, $ret>> {
                 use serde_urlencoded;
                 use serde::Serialize;
 
@@ -72,11 +70,9 @@ macro_rules! paged_routes {
 
                 let url = format!(concat!("/api/v1/", $url, "?{}"), &qs);
 
-                let response = self.send_blocking(
-                        self.client.get(&url)
-                )?;
+                let response = self.send(self.client.get(&url)).await?;
 
-                Page::new(self, response)
+                Page::new(self, response).await
             }
         }
 
@@ -94,7 +90,7 @@ macro_rules! route_v2 {
                 $url,
                 "`\n# Errors\nIf `access_token` is not set."
             ),
-            pub fn $name<'a>(&self, $($param: $typ,)*) -> Result<$ret> {
+            pub async fn $name<'a>(&self, $($param: $typ,)*) -> Result<$ret> {
                 use serde_urlencoded;
                 use serde::Serialize;
 
@@ -118,7 +114,7 @@ macro_rules! route_v2 {
 
                 let url = format!(concat!("/api/v2/", $url, "?{}"), &qs);
 
-                self.get(self.route(&url))
+                self.get(self.route(&url)).await
             }
         }
 
@@ -137,7 +133,7 @@ macro_rules! route {
                 $url,
                 "`\n# Errors\nIf `access_token` is not set."
             ),
-            pub fn $name<'a>(&self, $($param: $typ,)*) -> Result<$ret> {
+            pub async fn $name<'a>(&self, $($param: $typ,)*) -> Result<$ret> {
                 use serde_urlencoded;
                 use serde::Serialize;
 
@@ -161,7 +157,7 @@ macro_rules! route {
 
                 let url = format!(concat!("/api/v1/", $url, "?{}"), &qs);
 
-                self.get(self.route(&url))
+                self.get(self.route(&url)).await
             }
         }
 
@@ -175,7 +171,7 @@ macro_rules! route {
                 $url,
                 "`\n# Errors\nIf `access_token` is not set.",
             ),
-            pub fn $name(&self, $($param: $typ,)*) -> Result<$ret> {
+            pub async fn $name(&self, $($param: $typ,)*) -> Result<$ret> {
 
                 let form_data = serde_json::json!({
                     $(
@@ -183,10 +179,11 @@ macro_rules! route {
                     )*
                 });
 
-                let response = self.send_blocking(
-                        self.client.$method(&self.route(concat!("/api/v1/", $url)))
-                            .json(&form_data)
-                )?;
+                let json = self.client
+                    .$method(&self.route(concat!("/api/v1/", $url)))
+                    .json(&form_data);
+
+                let response = self.send(json).await?;
 
                 let status = response.status().clone();
 
@@ -196,7 +193,7 @@ macro_rules! route {
                     return Err(Error::Server(status));
                 }
 
-                deserialise_blocking(response)
+                deserialise_blocking(response).await
             }
         }
 
@@ -227,8 +224,8 @@ macro_rules! route {
                 "# }\n",
                 "```"
             ),
-            pub fn $name(&self) -> Result<$ret> {
-                self.$method(self.route(concat!("/api/v1/", $url)))
+            pub async fn $name(&self) -> Result<$ret> {
+                self.$method(self.route(concat!("/api/v1/", $url))).await
             }
         }
 
@@ -265,8 +262,8 @@ macro_rules! route_id {
                     "# }\n",
                     "```"
                 ),
-                pub fn $name(&self, id: &str) -> Result<$ret> {
-                    self.$method(self.route(&format!(concat!("/api/v1/", $url), id)))
+                pub async fn $name(&self, id: &str) -> Result<$ret> {
+                    self.$method(self.route(&format!(concat!("/api/v1/", $url), id))).await
                 }
             }
          )*
@@ -299,13 +296,12 @@ macro_rules! paged_routes_with_id {
                 "# }\n",
                 "```"
             ),
-            pub fn $name(&self, id: &str) -> Result<Page<$ret>> {
+            pub async fn $name<'a>(&'a self, id: &str) -> Result<Page<'a, $ret>> {
                 let url = self.route(&format!(concat!("/api/v1/", $url), id));
-                let response = self.send_blocking(
-                        self.client.$method(&url)
-                )?;
+                let res = self.client.$method(&url);
+                let response = self.send(res).await?;
 
-                Page::new(self, response)
+                Page::new(self, response).await
             }
         }
 

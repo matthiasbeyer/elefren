@@ -5,10 +5,8 @@ use reqwest::Response;
 
 // Convert the HTTP response body from JSON. Pass up deserialization errors
 // transparently.
-pub fn deserialise_blocking<T: for<'de> serde::Deserialize<'de>>(response: Response) -> Result<T> {
-    let handle = tokio::runtime::Handle::current();
-
-    let bytes = handle.block_on(response.bytes())?;
+pub async fn deserialise_blocking<T: for<'de> serde::Deserialize<'de>>(response: Response) -> Result<T> {
+    let bytes = response.bytes().await?;
 
     match serde_json::from_slice(&bytes) {
         Ok(t) => {

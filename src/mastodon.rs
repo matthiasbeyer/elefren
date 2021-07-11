@@ -31,6 +31,7 @@ use crate::requests::UpdatePushRequest;
 use crate::status_builder::NewStatus;
 use crate::util::deserialise_blocking;
 
+use futures::future::TryFutureExt;
 use reqwest::Response;
 use reqwest::RequestBuilder;
 use reqwest::Client;
@@ -44,27 +45,26 @@ pub struct Mastodon {
 }
 
 impl Mastodon {
-    fn get<T: for<'de> serde::Deserialize<'de>>(&self, url: String) -> Result<T> {
-        self.send_blocking(self.client.get(&url)).and_then(deserialise_blocking)
+    async fn get<T: for<'de> serde::Deserialize<'de>>(&self, url: String) -> Result<T> {
+        self.send(self.client.get(&url)).and_then(deserialise_blocking).await
     }
 
-    fn post<T: for<'de> serde::Deserialize<'de>>(&self, url: String) -> Result<T> {
-        self.send_blocking(self.client.post(&url)).and_then(deserialise_blocking)
+    async fn post<T: for<'de> serde::Deserialize<'de>>(&self, url: String) -> Result<T> {
+        self.send(self.client.post(&url)).and_then(deserialise_blocking).await
     }
 
-    fn delete<T: for<'de> serde::Deserialize<'de>>(&self, url: String) -> Result<T> {
-        self.send_blocking(self.client.delete(&url)).and_then(deserialise_blocking)
+    async fn delete<T: for<'de> serde::Deserialize<'de>>(&self, url: String) -> Result<T> {
+        self.send(self.client.delete(&url)).and_then(deserialise_blocking).await
     }
 
     fn route(&self, url: &str) -> String {
         format!("{}{}", self.base, url)
     }
 
-    pub(crate) fn send_blocking(&self, req: RequestBuilder) -> Result<Response> {
+    pub(crate) async fn send(&self, req: RequestBuilder) -> Result<Response> {
         let request = req.bearer_auth(&self.token).build()?;
-        let handle = tokio::runtime::Handle::current();
-        handle
-            .block_on(self.client.execute(request))
+        self.client.execute(request)
+            .await
             .map_err(Error::from)
     }
 
@@ -138,9 +138,9 @@ impl Mastodon {
     }
 
     /// POST /api/v1/filters
-    pub fn add_filter(&self, request: &mut AddFilterRequest) -> Result<Filter> {
+    pub async fn add_filter(&self, request: &mut AddFilterRequest) -> Result<Filter> {
         let url = self.route("/api/v1/filters");
-        let response = self.send_blocking(self.client.post(&url).json(&request))?;
+        let response = self.send(self.client.post(&url).json(&request)).await?;
 
         let status = response.status();
 
@@ -150,13 +150,13 @@ impl Mastodon {
             return Err(Error::Server(status));
         }
 
-        deserialise_blocking(response)
+        deserialise_blocking(response).await
     }
 
     /// PUT /api/v1/filters/:id
-    pub fn update_filter(&self, id: &str, request: &mut AddFilterRequest) -> Result<Filter> {
+    pub async fn update_filter(&self, id: &str, request: &mut AddFilterRequest) -> Result<Filter> {
         let url = self.route(&format!("/api/v1/filters/{}", id));
-        let response = self.send_blocking(self.client.put(&url).json(&request))?;
+        let response = self.send(self.client.put(&url).json(&request)).await?;
 
         let status = response.status();
 
@@ -166,14 +166,14 @@ impl Mastodon {
             return Err(Error::Server(status));
         }
 
-        deserialise_blocking(response)
+        deserialise_blocking(response).await
     }
 
     /// Update credentials
-    pub fn update_credentials(&self, builder: UpdateCredsRequest) -> Result<Account> {
+    pub async fn update_credentials(&self, builder: UpdateCredsRequest) -> Result<Account> {
         let changes = builder.build()?;
         let url = self.route("/api/v1/accounts/update_credentials");
-        let response = self.send_blocking(self.client.patch(&url).json(&changes))?;
+        let response = self.send(self.client.patch(&url).json(&changes)).await?;
 
         let status = response.status();
 
@@ -183,23 +183,23 @@ impl Mastodon {
             return Err(Error::Server(status));
         }
 
-        deserialise_blocking(response)
+        deserialise_blocking(response).await
     }
 
     /// Post a new status to the account.
-    pub fn new_status(&self, status: NewStatus) -> Result<Status> {
-        let response = self.send_blocking(
+    pub async fn new_status(&self, status: NewStatus) -> Result<Status> {
+        let response = self.send(
             self.client
                 .post(&self.route("/api/v1/statuses"))
                 .json(&status),
-        )?;
+        ).await?;
 
-        deserialise_blocking(response)
+        deserialise_blocking(response).await
     }
 
     /// Get timeline filtered by a hashtag(eg. `#coffee`) either locally or
     /// federated.
-    pub fn get_hashtag_timeline(&self, hashtag: &str, local: bool) -> Result<Page<Status>> {
+    pub async fn get_hashtag_timeline<'a>(&'a self, hashtag: &str, local: bool) -> Result<Page<'a, Status>> {
         let base = "/api/v1/timelines/tag/";
         let url = if local {
             self.route(&format!("{}{}?local=1", base, hashtag))
@@ -207,7 +207,8 @@ impl Mastodon {
             self.route(&format!("{}{}", base, hashtag))
         };
 
-        Page::new(self, self.send_blocking(self.client.get(&url))?)
+        let response = self.send(self.client.get(&url)).await?;
+        Page::new(self, response).await
     }
 
     /// Get statuses of a single account by id. Optionally only with pictures
@@ -252,7 +253,7 @@ impl Mastodon {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn statuses<'a, 'b: 'a, S>(&'b self, id: &'b str, request: S) -> Result<Page<Status>>
+    pub async fn statuses<'a, 'b: 'a, S>(&'b self, id: &'b str, request: S) -> Result<Page<'b, Status>>
     where
         S: Into<Option<StatusesRequest<'a>>>,
     {
@@ -262,14 +263,14 @@ impl Mastodon {
             url = format!("{}{}", url, request.to_querystring()?);
         }
 
-        let response = self.send_blocking(self.client.get(&url))?;
+        let response = self.send(self.client.get(&url)).await?;
 
-        Page::new(self, response)
+        Page::new(self, response).await
     }
 
     /// Returns the client account's relationship to a list of other accounts.
     /// Such as whether they follow them or vice versa.
-    pub fn relationships(&self, ids: &[&str]) -> Result<Page<Relationship>> {
+    pub async fn relationships<'a>(&'a self, ids: &[&str]) -> Result<Page<'a, Relationship>> {
         let mut url = self.route("/api/v1/accounts/relationships?");
 
         if ids.len() == 1 {
@@ -284,46 +285,46 @@ impl Mastodon {
             url.pop();
         }
 
-        let response = self.send_blocking(self.client.get(&url))?;
+        let response = self.send(self.client.get(&url)).await?;
 
-        Page::new(self, response)
+        Page::new(self, response).await
     }
 
     /// Add a push notifications subscription
-    pub fn add_push_subscription(&self, request: &AddPushRequest) -> Result<Subscription> {
+    pub async fn add_push_subscription(&self, request: &AddPushRequest) -> Result<Subscription> {
         let request = request.build()?;
-        let response = self.send_blocking(
+        let response = self.send(
             self.client
                 .post(&self.route("/api/v1/push/subscription"))
                 .json(&request),
-        )?;
+        ).await?;
 
-        deserialise_blocking(response)
+        deserialise_blocking(response).await
     }
 
     /// Update the `data` portion of the push subscription associated with this
     /// access token
-    pub fn update_push_data(&self, request: &UpdatePushRequest) -> Result<Subscription> {
+    pub async fn update_push_data(&self, request: &UpdatePushRequest) -> Result<Subscription> {
         let request = request.build();
-        let response = self.send_blocking(
+        let response = self.send(
             self.client
                 .put(&self.route("/api/v1/push/subscription"))
                 .json(&request),
-        )?;
+        ).await?;
 
-        deserialise_blocking(response)
+        deserialise_blocking(response).await
     }
 
     /// Get all accounts that follow the authenticated user
-    pub fn follows_me(&self) -> Result<Page<Account>> {
-        let me = self.verify_credentials()?;
-        self.followers(&me.id)
+    pub async fn follows_me<'a>(&'a self) -> Result<Page<'a, Account>> {
+        let me = self.verify_credentials().await?;
+        self.followers(&me.id).await
     }
 
     /// Get all accounts that the authenticated user follows
-    pub fn followed_by_me(&self) -> Result<Page<Account>> {
-        let me = self.verify_credentials()?;
-        self.following(&me.id)
+    pub async fn followed_by_me<'a>(&'a self) -> Result<Page<'a, Account>> {
+        let me = self.verify_credentials().await?;
+        self.following(&me.id).await
     }
 
     /// returns events that are relevant to the authorized user, i.e. home
@@ -520,7 +521,7 @@ impl Mastodon {
     }
 
     /// Equivalent to /api/v1/media
-    pub fn media(&self, media_builder: MediaBuilder) -> Result<Attachment> {
+    pub async fn media(&self, media_builder: MediaBuilder) -> Result<Attachment> {
         use reqwest::multipart::{Form, Part};
         use std::{fs::File, io::Read};
 
@@ -539,11 +540,11 @@ impl Mastodon {
             form_data = form_data.text("focus", string);
         }
 
-        let response = self.send_blocking(
+        let response = self.send(
             self.client
                 .post(&self.route("/api/v1/media"))
                 .multipart(form_data),
-        )?;
+        ).await?;
 
         let status = response.status();
 
@@ -553,7 +554,7 @@ impl Mastodon {
             return Err(Error::Server(status));
         }
 
-        deserialise_blocking(response)
+        deserialise_blocking(response).await
     }
 }
 

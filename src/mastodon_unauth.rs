@@ -36,11 +36,11 @@ impl MastodonUnauth {
         self.base.join(url).map_err(Error::from)
     }
 
-    fn send_blocking(&self, req: RequestBuilder) -> Result<Response> {
+    async fn send(&self, req: RequestBuilder) -> Result<Response> {
         let req = req.build()?;
-        let handle = tokio::runtime::Handle::current();
-        handle
-            .block_on(self.client.execute(req))
+        self.client
+            .execute(req)
+            .await
             .map_err(Error::from)
     }
 
@@ -66,29 +66,29 @@ impl MastodonUnauth {
     }
 
     /// GET /api/v1/statuses/:id
-    pub fn get_status(&self, id: &str) -> Result<Status> {
+    pub async fn get_status(&self, id: &str) -> Result<Status> {
         let route = self.route("/api/v1/statuses")?;
         let route = route.join(id)?;
-        let response = self.send_blocking(self.client.get(route))?;
-        deserialise_blocking(response)
+        let response = self.send(self.client.get(route)).await?;
+        deserialise_blocking(response).await
     }
 
     /// GET /api/v1/statuses/:id/context
-    pub fn get_context(&self, id: &str) -> Result<Context> {
+    pub async fn get_context(&self, id: &str) -> Result<Context> {
         let route = self.route("/api/v1/statuses")?;
         let route = route.join(id)?;
         let route = route.join("context")?;
-        let response = self.send_blocking(self.client.get(route))?;
-        deserialise_blocking(response)
+        let response = self.send(self.client.get(route)).await?;
+        deserialise_blocking(response).await
     }
 
     /// GET /api/v1/statuses/:id/card
-    pub fn get_card(&self, id: &str) -> Result<Card> {
+    pub async fn get_card(&self, id: &str) -> Result<Card> {
         let route = self.route("/api/v1/statuses")?;
         let route = route.join(id)?;
         let route = route.join("card")?;
-        let response = self.send_blocking(self.client.get(route))?;
-        deserialise_blocking(response)
+        let response = self.send(self.client.get(route)).await?;
+        deserialise_blocking(response).await
     }
 }
 

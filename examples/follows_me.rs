@@ -5,9 +5,10 @@ mod register;
 use std::error;
 
 #[cfg(feature = "toml")]
-fn main() -> Result<(), Box<dyn error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn error::Error>> {
     let mastodon = register::get_mastodon_data()?;
-    for account in mastodon.follows_me()?.items_iter() {
+    for account in mastodon.follows_me().await?.items_iter() {
         println!("{}", account.acct);
     }
 

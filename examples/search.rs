@@ -5,10 +5,11 @@ mod register;
 use std::error;
 
 #[cfg(feature = "toml")]
-fn main() -> Result<(), Box<dyn error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn error::Error>> {
     let mastodon = register::get_mastodon_data()?;
     let input = register::read_line("Enter the term you'd like to search: ")?;
-    let result = mastodon.search(&input, false)?;
+    let result = mastodon.search(&input, false).await?;
 
     println!("{:#?}", result);
 

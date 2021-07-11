@@ -5,9 +5,10 @@ mod register;
 use std::error;
 
 #[cfg(feature = "toml")]
-fn main() -> Result<(), Box<dyn error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn error::Error>> {
     let mastodon = register::get_mastodon_data()?;
-    let you = mastodon.verify_credentials()?;
+    let you = mastodon.verify_credentials().await?;
 
     println!("{:#?}", you);
 

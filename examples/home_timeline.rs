@@ -5,9 +5,10 @@ mod register;
 use std::error;
 
 #[cfg(feature = "toml")]
-fn main() -> Result<(), Box<dyn error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn error::Error>> {
     let mastodon = register::get_mastodon_data()?;
-    let tl = mastodon.get_home_timeline()?;
+    let tl = mastodon.get_home_timeline().await?;
 
     println!("{:#?}", tl);
 

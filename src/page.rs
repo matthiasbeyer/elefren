@@ -14,21 +14,19 @@ macro_rules! pages {
         $(
             doc_comment::doc_comment!(concat!(
                     "Method to retrieve the ", stringify!($direction), " page of results"),
-            pub fn $fun(&mut self) -> Result<Option<Vec<T>>> {
+            pub async fn $fun(&mut self) -> Result<Option<Vec<T>>> {
                 let url = match self.$direction.take() {
                     Some(s) => s,
                     None => return Ok(None),
                 };
 
-                let response = self.mastodon.send_blocking(
-                    self.mastodon.client.get(url)
-                )?;
+                let response = self.mastodon.send(self.mastodon.client.get(url)).await?;
 
                 let (prev, next) = get_links(&response)?;
                 self.next = next;
                 self.prev = prev;
 
-                deserialise_blocking(response)
+                deserialise_blocking(response).await
             });
          )*
     }
@@ -110,10 +108,10 @@ impl<'a, T: for<'de> Deserialize<'de>> Page<'a, T> {
         prev: prev_page
     }
 
-    pub(crate) fn new(mastodon: &'a Mastodon, response: Response) -> Result<Self> {
+    pub(crate) async fn new(mastodon: &'a Mastodon, response: Response) -> Result<Page<'a, T>> {
         let (prev, next) = get_links(&response)?;
         Ok(Page {
-            initial_items: deserialise_blocking(response)?,
+            initial_items: deserialise_blocking(response).await?,
             next,
             prev,
             mastodon,
