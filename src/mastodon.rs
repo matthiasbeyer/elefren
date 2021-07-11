@@ -5,8 +5,6 @@ use crate::data::Data;
 use crate::entities::Empty;
 use crate::entities::account::Account;
 use crate::entities::attachment::Attachment;
-use crate::entities::card::Card;
-use crate::entities::context::Context;
 use crate::entities::filter::Filter;
 use crate::entities::instance::*;
 use crate::entities::notification::Notification;
@@ -42,6 +40,38 @@ pub struct Mastodon {
     pub(crate) client: Client,
     /// Raw data about your mastodon instance.
     pub data: Data,
+}
+
+macro_rules! gen_id_route {
+    ($method:ident, $name:ident, $routetype:ty) => {
+        /// Access Route `$routetype::ROUTE`
+        ///
+        /// Equivalent to `get(format!("/api/v1/{}/{}", $routetype::ROUTE, id))`
+        ///
+        /// # Errors
+        ///
+        /// If `access_token` is not set.
+        ///
+        /// ```no_run
+        /// # extern crate elefren;
+        /// # use elefren::prelude::*;
+        /// # fn main() -> Result<(), Box<::std::error::Error>> {
+        /// # let data = Data {
+        /// #     base: \"https://example.com\".into(),
+        /// #     client_id: \"taosuah\".into(),
+        /// #     client_secret: \"htnjdiuae\".into(),
+        /// #     redirect: \"https://example.com\".into(),
+        /// #     token: \"tsaohueaheis\".into(),
+        /// # };
+        /// let client = Mastodon::from(data);
+        /// let account = client.$name("42")?;
+        /// #   Ok(())
+        /// # }
+        /// ```"
+        pub async fn $name(&self, id: &str) -> Result<<$routetype as crate::routes::IdRoute>::Output> {
+            self.$method::<$routetype>(id).await
+        }
+    }
 }
 
 impl Mastodon {
@@ -125,57 +155,51 @@ impl Mastodon {
         self.get(route).await
     }
 
-    /// Replacement for Mastodon::get_account()
+    /// Generic function for making a POST request to "{self.base}/api/v1/{Route::ROUTE}/{id}"
     ///
-    /// Equivalent to `get(format!("/api/v1/accounts/{}", id))`
+    /// # Returns
     ///
-    /// # Errors
+    /// Result of Route::OUTPUT
     ///
-    /// If `access_token` is not set.
-    ///
-    /// ```no_run
-    /// # extern crate elefren;
-    /// # use elefren::prelude::*;
-    /// # fn main() -> Result<(), Box<::std::error::Error>> {
-    /// # let data = Data {
-    /// #     base: \"https://example.com\".into(),
-    /// #     client_id: \"taosuah\".into(),
-    /// #     client_secret: \"htnjdiuae\".into(),
-    /// #     redirect: \"https://example.com\".into(),
-    /// #     token: \"tsaohueaheis\".into(),
-    /// # };
-    /// let client = Mastodon::from(data);
-    /// let accoutn = client.get_account_new("42")?;
-    /// #   Ok(())
-    /// # }
-    /// ```"
-    pub async fn get_account_new(&self, id: &str) -> Result<Account> {
-        self.route_get_id::<crate::routes::GetAccount>(id).await
+    #[inline]
+    async fn route_post_id<Route: crate::routes::IdPostRoute>(&self, id: &str) -> Result<Route::Output> {
+        let route = format!("{}/api/v1/{}/{}", self.base, Route::ROUTE, id);
+        self.post(route).await
     }
 
-    route_id! {
-        (get) get_account: "accounts/{}" => Account,
-        (post) follow: "accounts/{}/follow" => Relationship,
-        (post) unfollow: "accounts/{}/unfollow" => Relationship,
-        (post) block: "accounts/{}/block" => Relationship,
-        (post) unblock: "accounts/{}/unblock" => Relationship,
-        (get) mute: "accounts/{}/mute" => Relationship,
-        (get) unmute: "accounts/{}/unmute" => Relationship,
-        (get) get_notification: "notifications/{}" => Notification,
-        (get) get_status: "statuses/{}" => Status,
-        (get) get_context: "statuses/{}/context" => Context,
-        (get) get_card: "statuses/{}/card" => Card,
-        (post) reblog: "statuses/{}/reblog" => Status,
-        (post) unreblog: "statuses/{}/unreblog" => Status,
-        (post) favourite: "statuses/{}/favourite" => Status,
-        (post) unfavourite: "statuses/{}/unfavourite" => Status,
-        (delete) delete_status: "statuses/{}" => Empty,
-        (get) get_filter: "filters/{}" => Filter,
-        (delete) delete_filter: "filters/{}" => Empty,
-        (delete) delete_from_suggestions: "suggestions/{}" => Empty,
-        (post) endorse_user: "accounts/{}/pin" => Relationship,
-        (post) unendorse_user: "accounts/{}/unpin" => Relationship,
+    /// Generic function for making a DELETE request to "{self.base}/api/v1/{Route::ROUTE}/{id}"
+    ///
+    /// # Returns
+    ///
+    /// Result of Route::OUTPUT
+    ///
+    #[inline]
+    async fn route_delete_id<Route: crate::routes::IdDeleteRoute>(&self, id: &str) -> Result<Route::Output> {
+        let route = format!("{}/api/v1/{}/{}", self.base, Route::ROUTE, id);
+        self.delete(route).await
     }
+
+    gen_id_route!(route_delete_id , delete_filter           , crate::routes::DeleteFilter);
+    gen_id_route!(route_delete_id , delete_from_suggestions , crate::routes::DeleteFromSuggestions);
+    gen_id_route!(route_delete_id , delete_status           , crate::routes::DeleteStatus);
+    gen_id_route!(route_get_id    , get_account             , crate::routes::GetAccount);
+    gen_id_route!(route_get_id    , get_card                , crate::routes::GetCard);
+    gen_id_route!(route_get_id    , get_context             , crate::routes::GetContext);
+    gen_id_route!(route_get_id    , get_filter              , crate::routes::GetFilter);
+    gen_id_route!(route_get_id    , get_notification        , crate::routes::GetNotification);
+    gen_id_route!(route_get_id    , get_status              , crate::routes::GetStatus);
+    gen_id_route!(route_get_id    , mute                    , crate::routes::Mute);
+    gen_id_route!(route_get_id    , unmute                  , crate::routes::Unmute);
+    gen_id_route!(route_post_id   , block                   , crate::routes::Block);
+    gen_id_route!(route_post_id   , endorse_user            , crate::routes::EndorseUser);
+    gen_id_route!(route_post_id   , favourite               , crate::routes::Favourite);
+    gen_id_route!(route_post_id   , follow                  , crate::routes::Follow);
+    gen_id_route!(route_post_id   , reblog                  , crate::routes::Reblog);
+    gen_id_route!(route_post_id   , unblock                 , crate::routes::Unblock);
+    gen_id_route!(route_post_id   , unendorse_user          , crate::routes::UnendorseUser);
+    gen_id_route!(route_post_id   , unfavourite             , crate::routes::Unfavourite);
+    gen_id_route!(route_post_id   , unfollow                , crate::routes::Unfollow);
+    gen_id_route!(route_post_id   , unreblog                , crate::routes::Unreblog);
 
     /// POST /api/v1/filters
     pub async fn add_filter(&self, request: &mut AddFilterRequest) -> Result<Filter> {

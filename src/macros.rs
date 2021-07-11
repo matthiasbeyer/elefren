@@ -235,41 +235,6 @@ macro_rules! route {
     () => {}
 }
 
-macro_rules! route_id {
-
-    ($(($method:ident) $name:ident: $url:expr => $ret:ty,)*) => {
-        $(
-            doc_comment::doc_comment! {
-                concat!(
-                    "Equivalent to `", stringify!($method), " /api/v1/",
-                    $url,
-                    "`\n# Errors\nIf `access_token` is not set.",
-                    "\n",
-                    "```no_run",
-                    "# extern crate elefren;\n",
-                    "# use elefren::prelude::*;\n",
-                    "# fn main() -> Result<(), Box<::std::error::Error>> {\n",
-                    "# let data = Data {\n",
-                    "#     base: \"https://example.com\".into(),\n",
-                    "#     client_id: \"taosuah\".into(),\n",
-                    "#     client_secret: \"htnjdiuae\".into(),\n",
-                    "#     redirect: \"https://example.com\".into(),\n",
-                    "#     token: \"tsaohueaheis\".into(),\n",
-                    "# };\n",
-                    "let client = Mastodon::from(data);\n",
-                    "client.", stringify!($name), "(\"42\");\n",
-                    "#   Ok(())\n",
-                    "# }\n",
-                    "```"
-                ),
-                pub async fn $name(&self, id: &str) -> Result<$ret> {
-                    self.$method(self.route(&format!(concat!("/api/v1/", $url), id))).await
-                }
-            }
-         )*
-    }
-
-}
 macro_rules! paged_routes_with_id {
 
     (($method:ident) $name:ident: $url:expr => $ret:ty, $($rest:tt)*) => {
